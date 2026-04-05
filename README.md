@@ -137,7 +137,20 @@ graph TD
 * 小红书Cookie（[小红书](https://www.xiaohongshu.com/) 网页端登录后从浏览器开发者工具复制）
 * 安装 `uv` 包管理器
 
-### 1. 后端启动
+### Docker / Compose 配置约定
+
+Docker 部署采用容器环境变量作为后端运行时配置来源：
+
+* 容器启动时不再读取项目目录里的 `backend/.env`
+* 镜像构建时会忽略 `backend/.env`、`frontend/.env`、`frontend/.env.*`
+* `docker-compose.yaml` 中显式列出的 `environment` 仍然是后端运行时配置入口
+* 前端构建期变量 `VITE_AMAP_WEB_JS_KEY` 继续通过 `build.args` 注入
+
+本地开发仍可按下面步骤使用 `backend/.env` 和 `frontend/.env`。
+
+### 本地开发
+
+#### 1. 后端启动
 
 ```bash
 # 进入后端主目录
@@ -164,7 +177,7 @@ uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 API 启动后，您可以访问 `http://localhost:8000/docs` 查看互动文档。
 
-### 2. 前端启动
+#### 2. 前端启动
 
 ```bash
 # 进入前端主目录
@@ -199,7 +212,7 @@ TripStar/
 │   │   │   ├── llm_service.py     # LLM 客户端封装
 │   │   │   └── knowledge_graph_service.py  # 知识图谱构建
 │   │   └── models/                # Pydantic 类型定义 (schemas.py)
-│   └── .env                       # LLM 及系统环境变量载体
+│   └── .env                       # 本地开发环境变量载体（Docker 部署时不打进镜像）
 │
 ├── frontend/                      # Vue 3 互动前端
 │   ├── src/
@@ -207,6 +220,7 @@ TripStar/
 │   │   ├── components/            # 独立复用的 UI / 背景组件
 │   │   └── services/              # Axios 异步轮询及配置重试逻辑 (api.ts)
 │   ├── index.html                 # 入口挂载及高德地图 SecurityKey 预设
+│   ├── .env                       # 本地前端开发环境变量（Docker 构建时忽略）
 │   └── package.json
 │
 ├── Dockerfile                     # 通用生产发布容器脚本
