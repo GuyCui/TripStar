@@ -1,5 +1,14 @@
 """FastAPI主应用"""
 
+import sys
+import io
+
+# 强制 stdout/stderr 使用 UTF-8，防止非 UTF-8 控制台（如 cp932）输出中文时崩溃
+if hasattr(sys.stdout, 'buffer'):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'buffer'):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import os
 from pathlib import Path
 from fastapi import FastAPI, Request
