@@ -10,74 +10,69 @@ from ..services.llm_service import get_llm
 from ..models.schemas import TripRequest, TripPlan, DayPlan, Attraction, Meal, WeatherInfo, Location, Hotel
 from ..config import get_settings
 
-# ============ Agent提示词 ============
+# ============ Agent提示词 (动态模版化，支持 amap / google 双供应商) ============
 
-ATTRACTION_AGENT_PROMPT = """你是景点搜索专家。你的任务是根据城市和用户偏好搜索合适的景点。
 
-**重要提示:**
-1. 你必须使用工具来搜索景点!不要自己编造景点信息!
-2. 系统为你绑定的真实工具名称叫做 `amap_maps_text_search`，你**只能而且必须**原样输出这个名字。绝对不要输出 `amap` 或者 `action=...` 这样的自定义格式！
+def _build_weather_agent_prompt(tool_prefix: str) -> str:
+    """构建天气查询 Agent 的系统提示词。
 
-**工具调用格式:**
-使用maps_text_search工具时,必须严格按照以下单行格式输出，**不要带任何多余的字符或JSON block**:
-`[TOOL_CALL:amap_maps_text_search:keywords=景点关键词,city=城市名]`
-
-**示例:**
-用户: "搜索北京的历史文化景点"
-你的回复: [TOOL_CALL:amap_maps_text_search:keywords=历史文化,city=北京]
-
-用户: "搜索上海的公园"
-你的回复: [TOOL_CALL:amap_maps_text_search:keywords=公园,city=上海]
-
-**注意:**
-1. 必须使用工具,不要直接回答
-2. 格式必须完全正确,包括方括号和冒号
-3. 必须输出 `amap_maps_text_search` 作为工具名。
-"""
-
-WEATHER_AGENT_PROMPT = """你是天气查询专家。你的任务是查询指定城市的天气信息。
+    Args:
+        tool_prefix: "amap" 或 "google"
+    """
+    tool_name = f"{tool_prefix}_maps_weather"
+    return f"""你是天气查询专家。你的任务是查询指定城市的天气信息。
 
 **重要提示:**
 1. 你必须使用工具来查询天气!不要自己编造天气信息!
-2. 系统为你绑定的真实工具名称叫做 `amap_maps_weather`，你**只能而且必须**原样输出这个名字。
+2. 系统为你绑定的真实工具名称叫做 `{tool_name}`，你**只能而且必须**原样输出这个名字。
 
 **工具调用格式:**
-使用maps_weather工具时,必须严格按照以下单行格式输出，**不要带任何多余的字符或JSON block**:
-`[TOOL_CALL:amap_maps_weather:city=城市名]`
+使用天气工具时,必须严格按照以下单行格式输出，**不要带任何多余的字符或JSON block**:
+`[TOOL_CALL:{tool_name}:city=城市名]`
 
 **示例:**
 用户: "查询北京天气"
-你的回复: [TOOL_CALL:amap_maps_weather:city=北京]
+你的回复: [TOOL_CALL:{tool_name}:city=北京]
 
 用户: "上海的天气怎么样"
-你的回复: [TOOL_CALL:amap_maps_weather:city=上海]
+你的回复: [TOOL_CALL:{tool_name}:city=上海]
 
 **注意:**
 1. 必须使用工具,不要直接回答
 2. 格式必须完全正确,包括方括号和冒号
-3. 必须输出 `amap_maps_weather` 作为工具名。
+3. 必须输出 `{tool_name}` 作为工具名。
 """
 
-HOTEL_AGENT_PROMPT = """你是酒店推荐专家。你的任务是根据城市和景点位置推荐合适的酒店。
+
+def _build_hotel_agent_prompt(tool_prefix: str) -> str:
+    """构建酒店推荐 Agent 的系统提示词。"""
+    tool_name = f"{tool_prefix}_maps_text_search"
+    return f"""你是酒店推荐专家。你的任务是根据城市和景点位置推荐合适的酒店。
 
 **重要提示:**
 1. 你必须使用工具来搜索酒店!不要自己编造酒店信息!
-2. 系统为你绑定的真实工具名称叫做 `amap_maps_text_search`，你**只能而且必须**原样输出这个名字。
+2. 系统为你绑定的真实工具名称叫做 `{tool_name}`，你**只能而且必须**原样输出这个名字。
 
 **工具调用格式:**
-使用maps_text_search工具搜索酒店时,必须严格按照以下单行格式输出，**不要带任何多余的字符或JSON block**:
-`[TOOL_CALL:amap_maps_text_search:keywords=酒店,city=城市名]`
+使用text_search工具搜索酒店时,必须严格按照以下单行格式输出，**不要带任何多余的字符或JSON block**:
+`[TOOL_CALL:{tool_name}:keywords=酒店,city=城市名]`
 
 **示例:**
 用户: "搜索北京的酒店"
-你的回复: [TOOL_CALL:amap_maps_text_search:keywords=酒店,city=北京]
+你的回复: [TOOL_CALL:{tool_name}:keywords=酒店,city=北京]
 
 **注意:**
 1. 必须使用工具,不要直接回答
 2. 格式必须完全正确,包括方括号和冒号
 3. 关键词使用"酒店"或"宾馆"
-4. 必须输出 `amap_maps_text_search` 作为工具名。
+4. 必须输出 `{tool_name}` 作为工具名。
 """
+
+
+# 保留原有静态常量作为向后兼容 alias（部分外部代码可能引用到）
+ATTRACTION_AGENT_PROMPT = ""  # 已弃用，景点改走小红书
+WEATHER_AGENT_PROMPT = _build_weather_agent_prompt("amap")
+HOTEL_AGENT_PROMPT = _build_hotel_agent_prompt("amap")
 
 PLANNER_AGENT_PROMPT = """你是行程规划专家。你的任务是根据景点信息和天气信息,生成详细的旅行计划。
 
@@ -181,45 +176,42 @@ class MultiAgentTripPlanner:
             settings = get_settings()
             self.llm = get_llm()
 
-            # 创建共享的MCP工具(只创建一次)
-            print("  - 创建共享MCP工具...")
-            self.amap_tool = MCPTool(
-                name="amap",
-                description="高德地图服务",
-                server_command=["uvx", "amap-mcp-server"],
-                env={"AMAP_MAPS_API_KEY": settings.vite_amap_web_key},
-                auto_expand=True
-            )
-            # 当前 hello_agents 版本不会自动把 MCPTool 标记为 expandable，
-            # 手动开启后才能把 `amap_maps_*` 子工具注册到 Agent。
-            self.amap_tool.expandable = True
+            # ---------- 判断地图供应商 ----------
+            from ..services.map_dispatcher import get_map_provider
+            self.map_provider = get_map_provider()
+            print(f"  - 地图供应商: {self.map_provider.upper()}")
+
+            if self.map_provider == "google":
+                tool_prefix = "google"
+                self._init_google_tools(settings)
+            else:
+                tool_prefix = "amap"
+                self._init_amap_tools(settings)
+
+            # ---------- 构建动态提示词 ----------
+            weather_prompt = _build_weather_agent_prompt(tool_prefix)
+            hotel_prompt = _build_hotel_agent_prompt(tool_prefix)
 
             # 取消高德景点 Agent,改用原生小红书服务
             # print("  - 创建景点搜索Agent...")
-            # self.attraction_agent = SimpleAgent(
-            #     name="景点搜索专家",
-            #     llm=self.llm,
-            #     system_prompt=ATTRACTION_AGENT_PROMPT
-            # )
-            # self.attraction_agent.add_tool(self.amap_tool)
 
             # 创建天气查询Agent
             print("  - 创建天气查询Agent...")
             self.weather_agent = SimpleAgent(
                 name="天气查询专家",
                 llm=self.llm,
-                system_prompt=WEATHER_AGENT_PROMPT
+                system_prompt=weather_prompt
             )
-            self.weather_agent.add_tool(self.amap_tool)
+            self.weather_agent.add_tool(self._active_tool)
 
             # 创建酒店推荐Agent
             print("  - 创建酒店推荐Agent...")
             self.hotel_agent = SimpleAgent(
                 name="酒店推荐专家",
                 llm=self.llm,
-                system_prompt=HOTEL_AGENT_PROMPT
+                system_prompt=hotel_prompt
             )
-            self.hotel_agent.add_tool(self.amap_tool)
+            self.hotel_agent.add_tool(self._active_tool)
 
             # 创建行程规划Agent(不需要工具)
             print("  - 创建行程规划Agent...")
@@ -229,8 +221,7 @@ class MultiAgentTripPlanner:
                 system_prompt=PLANNER_AGENT_PROMPT
             )
 
-            print(f"✅ 多智能体系统初始化成功")
-            # print(f"   景点搜索Agent: {len(self.attraction_agent.list_tools())} 个工具")
+            print(f"✅ 多智能体系统初始化成功 (供应商={self.map_provider})")
             print(f"   天气查询Agent: {len(self.weather_agent.list_tools())} 个工具")
             print(f"   酒店推荐Agent: {len(self.hotel_agent.list_tools())} 个工具")
 
@@ -239,6 +230,128 @@ class MultiAgentTripPlanner:
             import traceback
             traceback.print_exc()
             raise
+
+    def _init_amap_tools(self, settings):
+        """初始化高德地图 MCP 工具。"""
+        print("  - 创建高德 MCP 工具...")
+        self.amap_tool = MCPTool(
+            name="amap",
+            description="高德地图服务",
+            server_command=["uvx", "amap-mcp-server"],
+            env={"AMAP_MAPS_API_KEY": settings.vite_amap_web_key},
+            auto_expand=True
+        )
+        self.amap_tool.expandable = True
+        self._active_tool = self.amap_tool
+
+    def _init_google_tools(self, settings):
+        """初始化 Google Maps 本地适配器工具。"""
+        print("  - 创建 Google Maps 本地适配器工具...")
+        from ..services.google_map_service import GoogleMapService
+
+        # 创建一个轻量级的本地工具适配器
+        google_svc = GoogleMapService(api_key=settings.google_maps_api_key, proxy=settings.google_maps_proxy)
+
+        class GoogleMapsNativeTool:
+            """将 Google Maps API 封装为 hello_agents 可注册的工具。
+
+            通过鸭子类型模拟 MCPTool 的接口（name, description, expandable,
+            _available_tools, run），无需继承任何基类。
+
+            注册后在 Agent 的可用工具列表中暴露为:
+              - google_maps_text_search
+              - google_maps_weather
+              - google_maps_geo
+            """
+
+            def __init__(self):
+                self.name = "google"
+                self.description = "Google Maps 服务 (POI搜索/天气/地理编码)"
+                self.expandable = True
+                self._google_svc = google_svc
+                # 模拟 MCP 子工具列表，使 hello_agents 能自动展开
+                self._available_tools = [
+                    {"name": "google_maps_text_search", "description": "Google POI文本搜索"},
+                    {"name": "google_maps_weather", "description": "Google 天气查询"},
+                    {"name": "google_maps_geo", "description": "Google 地理编码"},
+                ]
+
+            def get_expanded_tools(self):
+                """返回展开的子工具列表，满足 hello_agents ToolRegistry 的接口要求。"""
+                parent = self
+
+                class _SubTool:
+                    def __init__(self, name, description):
+                        self.name = name
+                        self.description = description
+                        self.expandable = False
+
+                    def run(self, input_data):
+                        return parent.run(input_data)
+
+                    def get_expanded_tools(self):
+                        return [self]
+
+                return [_SubTool(t["name"], t["description"]) for t in self._available_tools]
+
+            def run(self, input_data):
+                """分发 [TOOL_CALL:google_maps_*:...] 格式调用。"""
+                import re as _re
+                if isinstance(input_data, dict):
+                    tool_name = input_data.get("tool_name", "")
+                    arguments = input_data.get("arguments", {})
+                elif isinstance(input_data, str):
+                    # 解析 [TOOL_CALL:google_maps_xxx:key=val,...] 格式
+                    match = _re.search(
+                        r'\[TOOL_CALL:(\w+):(.*?)\]', input_data
+                    )
+                    if match:
+                        tool_name = match.group(1)
+                        args_str = match.group(2)
+                        arguments = dict(
+                            kv.split("=", 1)
+                            for kv in args_str.split(",")
+                            if "=" in kv
+                        )
+                    else:
+                        return f"无法解析工具调用: {input_data}"
+                else:
+                    return f"不支持的输入类型: {type(input_data)}"
+
+                return self._dispatch(tool_name, arguments)
+
+            def _dispatch(self, tool_name: str, arguments: dict) -> str:
+                import json as _json
+                try:
+                    if tool_name == "google_maps_text_search":
+                        kw = arguments.get("keywords", "")
+                        city = arguments.get("city", "")
+                        results = self._google_svc.search_poi(kw, city)
+                        return _json.dumps(
+                            [r.model_dump() for r in results],
+                            ensure_ascii=False,
+                        )
+                    elif tool_name == "google_maps_weather":
+                        city = arguments.get("city", "")
+                        results = self._google_svc.get_weather(city)
+                        return _json.dumps(
+                            [r.model_dump() for r in results],
+                            ensure_ascii=False,
+                        )
+                    elif tool_name == "google_maps_geo":
+                        address = arguments.get("address", "")
+                        city = arguments.get("city", "")
+                        loc = self._google_svc.geocode(address, city)
+                        if loc:
+                            return _json.dumps(loc.model_dump(), ensure_ascii=False)
+                        return '{"error": "地理编码失败"}'
+                    else:
+                        return f'未知的 Google Maps 工具: {tool_name}'
+                except Exception as e:
+                    return f'Google Maps 工具调用失败: {e}'
+
+        self._google_tool = GoogleMapsNativeTool()
+        self._active_tool = self._google_tool
 
     async def _emit_progress(
         self,
@@ -253,6 +366,43 @@ class MultiAgentTripPlanner:
         result = progress_callback(stage, message, progress)
         if asyncio.iscoroutine(result):
             await result
+
+    async def _fallback_amap_weather(self, city: str) -> str:
+        """使用高德天气 HTTP REST API 直接获取天气, 作为 Google Weather 的降级备选。
+
+        跳过 MCP Agent 调用, 直接用 httpx 请求高德天气 API。
+        """
+        import httpx
+        settings = get_settings()
+        amap_key = settings.vite_amap_web_key
+        if not amap_key:
+            return "高德 Web Key 未配置，无法降级查询天气"
+
+        # 很多时候 request.city 会带有国家/省份前缀，例如 "中国-北京"
+        # 高德天气 API 严格要求城市名或 adcode，所以我们提取最后一段
+        clean_city = city.split("-")[-1].strip()
+
+        # 高德天气 REST API: https://lbs.amap.com/api/webservice/guide/api/weatherinfo
+        url = "https://restapi.amap.com/v3/weather/weatherInfo"
+        params = {"key": amap_key, "city": clean_city, "extensions": "all", "output": "JSON"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url, params=params)
+                data = resp.json()
+            forecasts = data.get("forecasts", [])
+            if not forecasts:
+                return f"高德天气 API 无预报数据: {json.dumps(data, ensure_ascii=False)}"
+            casts = forecasts[0].get("casts", [])
+            result_lines = []
+            for c in casts:
+                result_lines.append(
+                    f"{c.get('date','')}: 白天{c.get('dayweather','')} {c.get('daytemp','')}°C, "
+                    f"夜间{c.get('nightweather','')} {c.get('nighttemp','')}°C, "
+                    f"{c.get('daywind','')}风 {c.get('daypower','')}"
+                )
+            return "\n".join(result_lines) if result_lines else json.dumps(data, ensure_ascii=False)
+        except Exception as e:
+            return f"高德天气降级 HTTP 请求失败: {e}"
     
     async def plan_trip(
         self,
@@ -284,22 +434,34 @@ class MultiAgentTripPlanner:
             # ========== 串行阶段: 步骤1-3 依次执行 ==========
             print("⏳ 依次执行步骤1-3: 搜索景点 -> 查询天气 -> 搜索酒店...")
 
-            # 构建各Agent的查询
-            weather_query = f"请查询{request.city}的天气信息"
-            hotel_query = f"请搜索{request.city}的{request.accommodation}酒店"
-
             # 依次执行,避免多个线程同时启动 uvx 子进程导致资源竞争和超时
             print("  [1/3] 正在使用小红书服务搜索景点...")
             await self._emit_progress(progress_callback, "attraction_search", "正在使用小红书搜索景点...", 30)
             from ..services.xhs_service import search_xhs_attractions
             keywords = request.preferences[0] if request.preferences else "景点"
-            attraction_response = await asyncio.to_thread(search_xhs_attractions, request.city, keywords)
+            _lang = (getattr(request, 'language', 'zh') or 'zh').strip().lower().split('-')[0]
+            attraction_response = await asyncio.to_thread(search_xhs_attractions, request.city, keywords, _lang)
             print(f"📍 景点搜索结果: {attraction_response[:200]}...")
+
+            # 构建各Agent的查询（融入语言上下文）
+            _lang_hint = "" if _lang == "zh" else f" Please respond in {'English' if _lang == 'en' else _lang}."
+            weather_query = f"请查询{request.city}的天气信息{_lang_hint}"
+            hotel_query = f"请搜索{request.city}的{request.accommodation}酒店{_lang_hint}"
 
             print("  [2/3] 正在查询天气...")
             await self._emit_progress(progress_callback, "weather_search", "正在查询天气信息...", 50)
             weather_response = await asyncio.to_thread(self.weather_agent.run, weather_query)
             print(f"🌤️  天气查询结果: {weather_response[:200]}...")
+
+            # Google 天气降级: 若 Google Weather API 未启用或调用失败，回退到高德天气 HTTP API
+            _weather_fail_keywords = ("无法", "失败", "错误", "error", "unknown", "抱歉", "sorry")
+            if self.map_provider == "google" and any(kw in weather_response.lower() for kw in _weather_fail_keywords):
+                print("  ⚠️ Google 天气查询失败，正在降级到高德天气 API...")
+                try:
+                    weather_response = await self._fallback_amap_weather(request.city)
+                    print(f"  ✅ 高德天气降级成功: {weather_response[:200]}...")
+                except Exception as _wb_err:
+                    print(f"  ❌ 高德天气降级也失败: {_wb_err}")
 
             print("  [3/3] 正在搜索酒店...")
             await self._emit_progress(progress_callback, "hotel_search", "正在搜索酒店推荐...", 70)
@@ -418,6 +580,15 @@ class MultiAgentTripPlanner:
 """
         if request.free_text_input:
             query += f"\n**额外要求:** {request.free_text_input}"
+
+        # 如果用户选择了非中文语言，指示模型用目标语言输出所有文字内容
+        _lang = (getattr(request, 'language', 'zh') or 'zh').strip().lower().split('-')[0]
+        if _lang != 'zh':
+            _lang_names = {"en": "English", "ja": "Japanese", "ko": "Korean", "fr": "French", "de": "German", "es": "Spanish"}
+            _target_lang = _lang_names.get(_lang, _lang)
+            query += f"""\n\n**语言要求 (Language Requirement):**
+请用 {_target_lang} 语言输出所有文字内容（包括 description, overall_suggestions, meals 中的 name/description, hotel 中的 name/address, attractions 中的 name/address/description 等）。
+JSON 的 key 名称保持英文不变，只翻译 value 中的文字。"""
 
         return query
     

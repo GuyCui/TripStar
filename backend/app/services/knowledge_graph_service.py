@@ -30,10 +30,77 @@ NODE_SIZES = {
     "preference": 30,
 }
 
+# ============ 多语言翻译表 ============
+_I18N: Dict[str, Dict[str, str]] = {
+    "zh": {
+        # 分类名称
+        "cat_city": "城市", "cat_day": "日程", "cat_attraction": "景点",
+        "cat_hotel": "酒店", "cat_meal": "餐饮", "cat_weather": "天气",
+        "cat_budget": "预算", "cat_preference": "偏好/建议",
+        # 边标签
+        "edge_itinerary": "行程", "edge_visit": "游览", "edge_next": "下一站",
+        "edge_checkin": "入住", "edge_weather": "天气", "edge_budget": "预算",
+        "edge_suggestion": "建议",
+        # 节点文本模板
+        "day_n": "第{n}天",
+        "visit_duration": "游览{min}分钟", "ticket_price": "门票¥{price}",
+        "hotel_cost": "{range} | ¥{cost}/晚",
+        "total_budget": "总预算 ¥{total}",
+        # 餐饮类型
+        "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "小吃",
+        # 预算子项
+        "budget_attraction": "景点", "budget_hotel": "酒店",
+        "budget_meal": "餐饮", "budget_transport": "交通",
+    },
+    "en": {
+        "cat_city": "City", "cat_day": "Schedule", "cat_attraction": "Attraction",
+        "cat_hotel": "Hotel", "cat_meal": "Dining", "cat_weather": "Weather",
+        "cat_budget": "Budget", "cat_preference": "Tips",
+        "edge_itinerary": "Itinerary", "edge_visit": "Visit", "edge_next": "Next",
+        "edge_checkin": "Check-in", "edge_weather": "Weather", "edge_budget": "Budget",
+        "edge_suggestion": "Tips",
+        "day_n": "Day {n}",
+        "visit_duration": "Visit {min} min", "ticket_price": "Ticket ¥{price}",
+        "hotel_cost": "{range} | ¥{cost}/night",
+        "total_budget": "Total Budget ¥{total}",
+        "breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "snack": "Snack",
+        "budget_attraction": "Attractions", "budget_hotel": "Hotels",
+        "budget_meal": "Dining", "budget_transport": "Transport",
+    },
+    "ja": {
+        "cat_city": "都市", "cat_day": "スケジュール", "cat_attraction": "観光地",
+        "cat_hotel": "ホテル", "cat_meal": "グルメ", "cat_weather": "天気",
+        "cat_budget": "予算", "cat_preference": "おすすめ",
+        "edge_itinerary": "旅程", "edge_visit": "観光", "edge_next": "次へ",
+        "edge_checkin": "宿泊", "edge_weather": "天気", "edge_budget": "予算",
+        "edge_suggestion": "提案",
+        "day_n": "{n}日目",
+        "visit_duration": "観光{min}分", "ticket_price": "入場料¥{price}",
+        "hotel_cost": "{range} | ¥{cost}/泊",
+        "total_budget": "総予算 ¥{total}",
+        "breakfast": "朝食", "lunch": "昼食", "dinner": "夕食", "snack": "軽食",
+        "budget_attraction": "観光地", "budget_hotel": "ホテル",
+        "budget_meal": "グルメ", "budget_transport": "交通",
+    },
+}
 
-def build_knowledge_graph(trip_plan: TripPlan) -> Dict[str, Any]:
+
+def _t(key: str, lang: str, **kwargs: Any) -> str:
+    """从翻译表中取对应语言的文本，支持占位符替换。"""
+    table = _I18N.get(lang, _I18N["zh"])
+    template = table.get(key, _I18N["zh"].get(key, key))
+    if kwargs:
+        return template.format(**kwargs)
+    return template
+
+
+def build_knowledge_graph(trip_plan: TripPlan, language: str = "zh") -> Dict[str, Any]:
     """
     从 TripPlan 构建知识图谱数据
+
+    Args:
+        trip_plan: 旅行计划数据
+        language: 界面语言代码 (zh/en/ja 等)
 
     Returns:
         {
@@ -42,32 +109,31 @@ def build_knowledge_graph(trip_plan: TripPlan) -> Dict[str, Any]:
             "categories": [{"name"}]
         }
     """
+    lang = (language or "zh").strip().lower().split("-")[0]
+    print(f"[KG] build_knowledge_graph called with language='{language}' -> resolved lang='{lang}'")
     nodes: List[Dict[str, Any]] = []
     edges: List[Dict[str, Any]] = []
     node_ids = set()
 
     # ---- 分类定义 (ECharts graph categories) ----
-    categories = [
-        {"name": "城市"},
-        {"name": "日程"},
-        {"name": "景点"},
-        {"name": "酒店"},
-        {"name": "餐饮"},
-        {"name": "天气"},
-        {"name": "预算"},
-        {"name": "偏好/建议"},
-    ]
-    cat_map = {c["name"]: i for i, c in enumerate(categories)}
+    cat_keys = ["cat_city", "cat_day", "cat_attraction", "cat_hotel",
+                "cat_meal", "cat_weather", "cat_budget", "cat_preference"]
+    categories = [{"name": _t(k, lang)} for k in cat_keys]
+    cat_map = {_t(k, lang): i for i, k in enumerate(cat_keys)}
+
+    # 内部分类名 → 英文 key 的映射（用于颜色/尺寸查找）
+    _cat_style_key = {
+        _t("cat_city", lang): "city", _t("cat_day", lang): "day",
+        _t("cat_attraction", lang): "attraction", _t("cat_hotel", lang): "hotel",
+        _t("cat_meal", lang): "meal", _t("cat_weather", lang): "weather",
+        _t("cat_budget", lang): "budget", _t("cat_preference", lang): "preference",
+    }
 
     def add_node(nid: str, name: str, category_name: str, extra_value: str = ""):
         if nid in node_ids:
             return
         node_ids.add(nid)
-        cat_key = {
-            "城市": "city", "日程": "day", "景点": "attraction",
-            "酒店": "hotel", "餐饮": "meal", "天气": "weather",
-            "预算": "budget", "偏好/建议": "preference",
-        }.get(category_name, "city")
+        cat_key = _cat_style_key.get(category_name, "city")
         nodes.append({
             "id": nid,
             "name": name,
@@ -80,15 +146,24 @@ def build_knowledge_graph(trip_plan: TripPlan) -> Dict[str, Any]:
     def add_edge(source: str, target: str, label: str = ""):
         edges.append({"source": source, "target": target, "label": label})
 
+    cat_city = _t("cat_city", lang)
+    cat_day = _t("cat_day", lang)
+    cat_attraction = _t("cat_attraction", lang)
+    cat_hotel = _t("cat_hotel", lang)
+    cat_meal = _t("cat_meal", lang)
+    cat_weather = _t("cat_weather", lang)
+    cat_budget = _t("cat_budget", lang)
+    cat_preference = _t("cat_preference", lang)
+
     # ========== 1. 城市中心节点 ==========
     city_id = f"city_{trip_plan.city}"
-    add_node(city_id, trip_plan.city, "城市", f"{trip_plan.start_date} ~ {trip_plan.end_date}")
+    add_node(city_id, trip_plan.city, cat_city, f"{trip_plan.start_date} ~ {trip_plan.end_date}")
 
     # ========== 2. 每日节点 ==========
     for day in trip_plan.days:
         day_id = f"day_{day.day_index}"
-        add_node(day_id, f"第{day.day_index + 1}天", "日程", day.date)
-        add_edge(city_id, day_id, "行程")
+        add_node(day_id, _t("day_n", lang, n=day.day_index + 1), cat_day, day.date)
+        add_edge(city_id, day_id, _t("edge_itinerary", lang))
 
         # ---- 景点 ----
         for i, attr in enumerate(day.attractions):
@@ -97,60 +172,63 @@ def build_knowledge_graph(trip_plan: TripPlan) -> Dict[str, Any]:
             if attr.address:
                 value_parts.append(attr.address)
             if attr.visit_duration:
-                value_parts.append(f"游览{attr.visit_duration}分钟")
+                value_parts.append(_t("visit_duration", lang, min=attr.visit_duration))
             if attr.ticket_price:
-                value_parts.append(f"门票¥{attr.ticket_price}")
-            add_node(attr_id, attr.name, "景点", " | ".join(value_parts))
-            add_edge(day_id, attr_id, "游览")
+                value_parts.append(_t("ticket_price", lang, price=attr.ticket_price))
+            add_node(attr_id, attr.name, cat_attraction, " | ".join(value_parts))
+            add_edge(day_id, attr_id, _t("edge_visit", lang))
 
             # 景点间顺序关系
             if i > 0:
                 prev_attr = day.attractions[i - 1]
                 prev_id = f"attr_{day.day_index}_{i-1}_{prev_attr.name}"
-                add_edge(prev_id, attr_id, "下一站")
+                add_edge(prev_id, attr_id, _t("edge_next", lang))
 
         # ---- 酒店 ----
         if day.hotel:
             hotel_id = f"hotel_{day.day_index}_{day.hotel.name}"
-            add_node(hotel_id, day.hotel.name, "酒店",
-                     f"{day.hotel.price_range} | ¥{day.hotel.estimated_cost}/晚" if day.hotel.estimated_cost else day.hotel.price_range)
-            add_edge(day_id, hotel_id, "入住")
+            hotel_value = (
+                _t("hotel_cost", lang, range=day.hotel.price_range, cost=day.hotel.estimated_cost)
+                if day.hotel.estimated_cost else day.hotel.price_range
+            )
+            add_node(hotel_id, day.hotel.name, cat_hotel, hotel_value)
+            add_edge(day_id, hotel_id, _t("edge_checkin", lang))
 
         # ---- 餐饮 ----
         for j, meal in enumerate(day.meals):
-            meal_label_map = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "小吃"}
-            meal_type_cn = meal_label_map.get(meal.type, meal.type)
+            meal_type_label = _t(meal.type, lang) if meal.type in ("breakfast", "lunch", "dinner", "snack") else meal.type
             meal_id = f"meal_{day.day_index}_{j}_{meal.name}"
-            add_node(meal_id, f"{meal_type_cn}: {meal.name}", "餐饮",
+            add_node(meal_id, f"{meal_type_label}: {meal.name}", cat_meal,
                      f"¥{meal.estimated_cost}" if meal.estimated_cost else "")
-            add_edge(day_id, meal_id, meal_type_cn)
+            add_edge(day_id, meal_id, meal_type_label)
 
     # ========== 3. 天气节点 ==========
     for w in trip_plan.weather_info:
         w_id = f"weather_{w.date}"
-        add_node(w_id, f"{w.day_weather} {w.day_temp}°C", "天气", w.date)
+        add_node(w_id, f"{w.day_weather} {w.day_temp}°C", cat_weather, w.date)
         # 尝试关联到对应天
         for day in trip_plan.days:
             if day.date == w.date:
-                add_edge(f"day_{day.day_index}", w_id, "天气")
+                add_edge(f"day_{day.day_index}", w_id, _t("edge_weather", lang))
                 break
 
     # ========== 4. 预算节点 ==========
     if trip_plan.budget:
         b = trip_plan.budget
         budget_id = "budget_total"
-        add_node(budget_id, f"总预算 ¥{b.total}", "预算", "")
-        add_edge(city_id, budget_id, "预算")
+        add_node(budget_id, _t("total_budget", lang, total=b.total), cat_budget, "")
+        add_edge(city_id, budget_id, _t("edge_budget", lang))
 
-        for label, value in [
-            ("景点", b.total_attractions),
-            ("酒店", b.total_hotels),
-            ("餐饮", b.total_meals),
-            ("交通", b.total_transportation),
+        for label_key, value in [
+            ("budget_attraction", b.total_attractions),
+            ("budget_hotel", b.total_hotels),
+            ("budget_meal", b.total_meals),
+            ("budget_transport", b.total_transportation),
         ]:
             if value:
-                sub_id = f"budget_{label}"
-                add_node(sub_id, f"{label} ¥{value}", "预算", "")
+                label = _t(label_key, lang)
+                sub_id = f"budget_{label_key}"
+                add_node(sub_id, f"{label} ¥{value}", cat_budget, "")
                 add_edge(budget_id, sub_id, label)
 
     # ========== 5. 总体建议节点 ==========
@@ -158,8 +236,8 @@ def build_knowledge_graph(trip_plan: TripPlan) -> Dict[str, Any]:
         sug_id = "suggestion_overall"
         # 截断过长文本
         sug_text = trip_plan.overall_suggestions[:30] + "..." if len(trip_plan.overall_suggestions) > 30 else trip_plan.overall_suggestions
-        add_node(sug_id, sug_text, "偏好/建议", trip_plan.overall_suggestions)
-        add_edge(city_id, sug_id, "建议")
+        add_node(sug_id, sug_text, cat_preference, trip_plan.overall_suggestions)
+        add_edge(city_id, sug_id, _t("edge_suggestion", lang))
 
     return {
         "nodes": nodes,

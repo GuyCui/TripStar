@@ -342,7 +342,7 @@ async def _run_trip_planning(task_id: str, request: TripRequest):
             progress=95,
             message="正在构建知识图谱...",
         )
-        graph_data = build_knowledge_graph(trip_plan)
+        graph_data = build_knowledge_graph(trip_plan, language=getattr(request, 'language', 'zh') or 'zh')
 
         trip_result = TripPlanResponse(
             success=True,

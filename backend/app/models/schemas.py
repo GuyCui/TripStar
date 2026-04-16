@@ -17,6 +17,7 @@ class TripRequest(BaseModel):
     accommodation: str = Field(..., description="住宿偏好", example="经济型酒店")
     preferences: List[str] = Field(default=[], description="旅行偏好标签", example=["历史文化", "美食"])
     free_text_input: Optional[str] = Field(default="", description="额外要求", example="希望多安排一些博物馆")
+    language: Optional[str] = Field(default="zh", description="输出语言(zh/en/ja)", example="en")
     
     class Config:
         json_schema_extra = {

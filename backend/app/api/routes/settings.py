@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from ...config import get_runtime_settings, update_runtime_settings
 from ...services.amap_service import reset_amap_service
+from ...services.google_map_service import reset_google_map_service
 from ...services.llm_service import reset_llm
 from ...agents.trip_planner_agent import reset_trip_planner_agent
 
@@ -18,6 +19,7 @@ class RuntimeSettingsPayload(BaseModel):
 
     vite_amap_web_key: Optional[str] = Field(default=None, description="高德 Web 服务 Key")
     vite_amap_web_js_key: Optional[str] = Field(default=None, description="高德 JS SDK Key")
+    google_maps_api_key: Optional[str] = Field(default=None, description="Google Maps API Key")
     xhs_cookie: Optional[str] = Field(default=None, description="小红书 Cookie")
     openai_api_key: Optional[str] = Field(default=None, description="LLM API Key")
     openai_base_url: Optional[str] = Field(default=None, description="LLM Base URL")
@@ -44,6 +46,7 @@ async def save_settings(payload: RuntimeSettingsPayload):
         # 重置单例，确保新配置立即生效
         reset_llm()
         reset_amap_service()
+        reset_google_map_service()
         reset_trip_planner_agent()
 
         return {

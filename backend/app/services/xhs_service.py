@@ -200,9 +200,10 @@ def get_xhs_client() -> XhsNativeClient:
 
 # ============ 高德地理编码 ============
 
-def geocode_amap(address: str, city: str) -> dict:
-    """内部静默使用高德Web服务进行地理编码补齐(为飞线服务)
-    针对景点等 POI 名称，使用 place/text 接口比 geocode 更精准
+def _geocode_amap_raw(address: str, city: str) -> dict:
+    """纯高德 Web 服务地理编码（供 map_dispatcher 降级调用）。
+
+    返回: {"longitude": float, "latitude": float}
     """
     settings = get_settings()
     if not settings.vite_amap_web_key:
@@ -221,6 +222,15 @@ def geocode_amap(address: str, city: str) -> dict:
 
     # 获取失败时给个默认兜底
     return {"longitude": 116.397128, "latitude": 39.916527}
+
+
+def geocode_amap(address: str, city: str) -> dict:
+    """统一地理编码入口 — 自动路由到 Google / 高德。
+
+    内部通过 map_dispatcher 判断当前活跃供应商。
+    """
+    from .map_dispatcher import geocode_unified
+    return geocode_unified(address, city)
 
 
 # ============ SSR 降级方案（备用） ============
@@ -244,10 +254,15 @@ def get_note_detail_ssr(note_id: str) -> dict:
 
 # ============ 景点搜索核心函数 ============
 
-def search_xhs_attractions(city: str, keywords: str) -> str:
+def search_xhs_attractions(city: str, keywords: str, language: str = "zh") -> str:
     """
     搜索小红书笔记，使用大模型极速提纯出结构化景点，
     并静默拼装经纬度和真实图片，回传给Planner。
+
+    Args:
+        city: 城市名称
+        keywords: 搜索关键词
+        language: 目标输出语言 (zh/en/ja 等)
     """
     print(f"🔍 [XHS_SERVICE] 正在呼叫小红书 API 搜索: {city} {keywords}")
     client = get_xhs_client()
@@ -301,10 +316,26 @@ def search_xhs_attractions(city: str, keywords: str) -> str:
     # ======== 轻量级提取过程 ========
     print(f"🧠 [XHS_SERVICE] 正在调用内联模型提纯小红书游记参数...")
     llm = get_llm()
+
+    # 根据目标语言构建翻译附加指令
+    _lang = (language or "zh").strip().lower().split("-")[0]
+    _lang_names = {"en": "English", "ja": "Japanese", "ko": "Korean", "fr": "French", "de": "German", "es": "Spanish"}
+    if _lang != "zh" and _lang in _lang_names:
+        translation_instruction = f"""
+**极其重要的翻译要求:**
+目标语言为 {_lang_names[_lang]}。你必须将所有提取结果中的 "name", "reason", "reservation_tips" 字段的内容翻译为 {_lang_names[_lang]}。
+- "name" 字段必须使用景点在当地的官方英文/本地名称（例如 "故宫博物院" → "The Palace Museum", "帝国大厦" → "Empire State Building"）。这对后续地理编码至关重要！
+- "reason" 和 "reservation_tips" 也必须翻译为 {_lang_names[_lang]}。
+- "duration" 和 "reservation_required" 保持原始数值/布尔值不变。
+- 严格保持 JSON schema 格式不变！
+"""
+    else:
+        translation_instruction = ""
+
     extract_prompt = f"""
 请从以下真实的素人小红书打卡游记中，提纯出真实存在的【游玩景点】。
 要求返回严格的 JSON 数组格式(哪怕只提取到了1个)，切勿返回除了JSON以外的任何冗余 markdown 文字！
-
+{translation_instruction}
 数组中每个对象必须包含以下字段:
 "name": 景点官方名称(必须能地理定位到)
 "reason": 小红书用户的真实评价/避坑指南

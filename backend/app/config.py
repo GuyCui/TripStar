@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     vite_amap_web_key: str = ""
     vite_amap_web_js_key: str = ""
 
+    # Google Maps API配置
+    google_maps_api_key: str = ""
+    google_maps_proxy: str = ""
+
     # 小红书配置
     xhs_cookie: str = ""
 
@@ -73,6 +77,8 @@ _RUNTIME_SETTINGS_FILE = Path(__file__).resolve().parent.parent / "runtime_setti
 _RUNTIME_SETTING_KEYS = {
     "vite_amap_web_key",
     "vite_amap_web_js_key",
+    "google_maps_api_key",
+    "google_maps_proxy",
     "xhs_cookie",
     "openai_api_key",
     "openai_base_url",
@@ -136,6 +142,8 @@ def get_runtime_settings() -> Dict[str, str]:
     return {
         "vite_amap_web_key": settings.vite_amap_web_key or "",
         "vite_amap_web_js_key": settings.vite_amap_web_js_key or "",
+        "google_maps_api_key": settings.google_maps_api_key or "",
+        "google_maps_proxy": settings.google_maps_proxy or "",
         "xhs_cookie": settings.xhs_cookie or "",
         "openai_api_key": settings.openai_api_key or "",
         "openai_base_url": settings.openai_base_url or "",
@@ -187,6 +195,8 @@ def print_config():
     print(f"服务器: {settings.host}:{settings.port}")
     print(f"高德地图API Key: {'已配置' if settings.vite_amap_web_key else '未配置'}")
     print(f"高德地图JS Key: {'已配置' if settings.vite_amap_web_js_key else '未配置'}")
+    print(f"Google Maps API Key: {'已配置' if settings.google_maps_api_key else '未配置'}")
+    print(f"Google Maps Proxy: {settings.google_maps_proxy or '未配置'}")
     print(f"小红书Cookie: {'已配置' if settings.xhs_cookie else '未配置'}")
 
     # 检查LLM配置
