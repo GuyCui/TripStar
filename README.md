@@ -1,5 +1,6 @@
-<div align="center">
-  <img width="651" height="251" alt="brand" src="https://github.com/user-attachments/assets/50c490da-9042-4661-bf8f-f7fd8084a506" />
+<div align="center" style="display: flex; justify-content: center; align-items: center; gap: 2px;">
+  <img width="130" alt="标头1" src="https://github.com/user-attachments/assets/daddae63-2000-4695-acf8-7722ab2162ae" />
+  <img width="400" alt="brand" src="https://github.com/user-attachments/assets/50c490da-9042-4661-bf8f-f7fd8084a506" />
 </div>
 <p align="center">
   <img src="https://img.shields.io/badge/license-GPL--2.0-orange">
@@ -167,6 +168,7 @@ sequenceDiagram
 * Node.js 18+
 * 大模型 API Key（推荐使用兼容 OpenAI 格式的服务商，如豆包）
 * 高德地图两种key： Web服务 、 Web端(JS API) (其**安全密钥 JSCode**配置在index.html中)（[高德api](https://lbs.amap.com/)）
+* [Google Maps API Key](https://developers.google.com/maps/apis-by-platform)（若要使用 Google 地图引擎，必须在 Google Cloud 控制台中开通：**Geocoding API, Places API (New), Directions API, Maps JavaScript API, Weather API**，需要绑卡）
 * 小红书Cookie（[小红书](https://www.xiaohongshu.com/) 网页端登录后从浏览器开发者工具复制）
 * 安装 `uv` 包管理器
 
