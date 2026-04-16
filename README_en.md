@@ -185,9 +185,9 @@ pip install -r requirements.txt
 # Copy config and fill your API KEYs
 cp .env.example .env
 # [Required] LLM_API_KEY, LLM_BASE_URL, LLM_MODEL_ID (pick a model good at JSON struct)
-# [Required] VITE_AMAP_WEB_KEY
+# [Optional] VITE_AMAP_WEB_KEY
 # [Required] XHS_COOKIE
-# [Optional] GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_PROXY
+# [Required] GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_PROXY
 
 # Start FastAPI (Uvicorn recommended)
 uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
